@@ -11,6 +11,7 @@
 
 #include "shader.h"
 #include "camera.h"
+#include "consts.h"
 
 #include <cmath>
 #include <iostream>
@@ -43,91 +44,22 @@ bool multipleCubes = false;
 bool spinCubeView = false;
 bool freeMoveCube = false;
 bool firstMouse = true;
+bool showLight = false;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
-// set up vertex data (and buffer(s)) and configure vertex attributes
-// ------------------------------------------------------------------
-float triangle_vertices[] = {
-    // positions         // colors
-        0.5f, -0.5f, 0.0f,  1.0f, 0.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f, 0.0f,  0.0f, 1.0f, 0.0f,  // bottom left
-        0.0f,  0.5f, 0.0f,  0.0f, 0.0f, 1.0f   // top 
-};
 
-float rectangle_vertices[] = {
-//     ---- 位置 ----       ---- 颜色 ----     - 纹理坐标 -
-        0.3f,  0.3f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // 右上
-        0.3f, -0.3f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // 右下
-    -0.3f, -0.3f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // 左下
-    -0.3f,  0.3f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // 左上
-};
-float rectangle_vertices2[] = {
-    //     ---- 位置 ----       ---- 颜色 ----     - 纹理坐标 -
-            0.3f,  0.3f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // 右上
-            0.3f, -0.3f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // 右下
-        -0.3f, -0.3f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // 左下
-        -0.3f,  0.3f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // 左上
-    };
-unsigned int rectangle_indices[] = {  
-    0, 1, 3, // first triangle
-    1, 2, 3  // second triangle
-};
-
-float cube_vertices[] = {
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-};
-
-float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
-float pitch = 0.0f;
-float fov   =  45.0f;
-
-float lastX = SCR_WIDTH / 2.0f, lastY = SCR_HEIGHT / 2.0f;
+glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
 
 // camera
+Camera camera(glm::vec3(0.0f, 0.0f, 6.0f));
+float lastX = SCR_WIDTH / 2.0f, lastY = SCR_HEIGHT / 2.0f;
 glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
+float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
+float pitch = 0.0f;
+float fov   =  45.0f;
 
 // timing
 float deltaTime = 0.0f;	// time between current frame and last frame
@@ -150,7 +82,7 @@ void my_gui(){
     {
         ImGui::Begin("Settings");
 
-        // 三角形设置部分
+        // triangle
         if (ImGui::CollapsingHeader("Triangle Settings")){
             ImGui::ColorEdit3("Triangle Color1", (float*)&triangleColor1);
             ImGui::ColorEdit3("Triangle Color2", (float*)&triangleColor2);
@@ -165,7 +97,7 @@ void my_gui(){
             }
         }
 
-        // 矩形设置部分
+        // rectangle
         if (ImGui::CollapsingHeader("Rectangle Settings")){
             if (ImGui::Button("show Rectangle")){
                 showRectangle = !showRectangle;
@@ -186,6 +118,7 @@ void my_gui(){
             ImGui::SliderFloat("Rectangle Height", &rectangleHeight, 0.0f, 2.0f);
             ImGui::SliderFloat("Rectangle Beta", &rectBeta, 0.0f, 1.0f);
         }
+        //Cube
         if (ImGui::CollapsingHeader("Cube Settings")){
             if (ImGui::Button("show Cube")){
                 showCube = !showCube;
@@ -198,6 +131,12 @@ void my_gui(){
             }
             if (ImGui::Button("free move")){
                 freeMoveCube = !freeMoveCube;
+            }
+        }
+
+        if (ImGui::CollapsingHeader("Light Settings")){
+            if (ImGui::Button("show Light")){
+                showLight = !showLight;
             }
         }
         ImGui::End();
@@ -279,6 +218,7 @@ int main()
     Shader triShader("src\\tri_shader.vs", "src\\tri_shader.fs"); // you can name your shader files however you like
     Shader rectShader("src\\rect_shader.vs", "src\\rect_shader.fs");
     Shader cubeShader("src\\cube_shader.vs", "src\\cube_shader.fs"); 
+    Shader lightShader("src\\light_shader.vs", "src\\light_shader.fs");
 
     unsigned int VBO_tri, VAO_tri;
     glGenVertexArrays(1, &VAO_tri);
@@ -326,10 +266,18 @@ int main()
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+
+    unsigned int lightVAO;
+    glGenVertexArrays(1, &lightVAO);
+
+    glBindVertexArray(lightVAO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
 
     unsigned int texture1;
     glGenTextures(1, &texture1);
@@ -379,9 +327,12 @@ int main()
     rectShader.setInt("texture2", 1);
 
     cubeShader.use();
-    cubeShader.setInt("texture1", 0);
-    cubeShader.setInt("texture2", 1);
-
+    // cubeShader.setInt("texture1", 0);
+    // cubeShader.setInt("texture2", 1);
+    unsigned int objectColorLoc = glGetUniformLocation(cubeShader.ID, "objectColor");
+    unsigned int lightColorLoc = glGetUniformLocation(cubeShader.ID, "lightColor");
+    glUniform3f(objectColorLoc, 1.0f, 0.5f, 0.31f);
+    glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
 
     // render loop
     // -----------
@@ -425,10 +376,30 @@ int main()
 
         // render
         // ------
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         my_gui();
+
+        // render the light
+        if (showLight){
+            lightShader.use();
+            glm::mat4 light_projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 light_view = camera.GetViewMatrix();
+            unsigned int light_projectionLoc = glGetUniformLocation(lightShader.ID, "projection");
+            glUniformMatrix4fv(light_projectionLoc, 1, GL_FALSE, glm::value_ptr(light_projection));
+            unsigned int light_viewLoc = glGetUniformLocation(lightShader.ID, "view");
+            glUniformMatrix4fv(light_viewLoc, 1, GL_FALSE, glm::value_ptr(light_view));
+            glm::mat4 light_model = glm::mat4(1.0f);
+            light_model = glm::mat4(1.0f);
+            light_model = glm::translate(light_model, lightPos);
+            light_model = glm::scale(light_model, glm::vec3(0.2f)); // a smaller cube
+            unsigned int light_modelLoc = glGetUniformLocation(lightShader.ID, "model");
+            glUniformMatrix4fv(light_modelLoc, 1, GL_FALSE, glm::value_ptr(light_model));
+
+            glBindVertexArray(lightVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
 
         // render the cube
         if (showCube) {
@@ -478,7 +449,7 @@ int main()
             for (int i = 0;i < MAX_CUBE_NUM;++i){
                 glm::mat4 cube_model         = glm::mat4(1.0f);
                 cube_model = glm::translate(cube_model, cube_positions[i]);
-                float angle = 20.0f * i;
+                float angle = 20.0f * (i + 5.0f);
                 cube_model = glm::rotate(cube_model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
                 unsigned int cube_modelLoc = glGetUniformLocation(cubeShader.ID, "model");
                 glUniformMatrix4fv(cube_modelLoc, 1, GL_FALSE, glm::value_ptr(cube_model));
@@ -570,6 +541,9 @@ int main()
 
     // optional: de-allocate all resources once they've outlived their purpose:
     // ------------------------------------------------------------------------
+    glDeleteVertexArrays(1, &lightVAO);
+    glDeleteVertexArrays(1, &VAO_cube);
+    glDeleteBuffers(1, &VBO_cube);
     glDeleteVertexArrays(1, &VAO_rect);
     glDeleteBuffers(1, &VBO_rect);
     glDeleteBuffers(1, &EBO_rect);
