@@ -1,3 +1,4 @@
+#include "glm/trigonometric.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -12,6 +13,8 @@
 
 #include <cmath>
 #include <iostream>
+#include <vector>
+#include <random>
 
 // #include <imgui/imgui.h>
 // #include <imgui/imgui_impl_glfw.h>
@@ -30,6 +33,7 @@ bool spin_rectangle = false;
 bool showTriangle = false;
 bool random_triangleColor = false;
 bool showRectangle = false;
+bool showCube = false;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
@@ -59,6 +63,50 @@ float rectangle_vertices2[] = {
 unsigned int rectangle_indices[] = {  
     0, 1, 3, // first triangle
     1, 2, 3  // second triangle
+};
+
+float cube_vertices[] = {
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
 ImVec4 triangleColor1 = ImVec4(1.0f, 0.0f, 0.0f, 0.0f);
@@ -114,7 +162,11 @@ void my_gui(){
             ImGui::SliderFloat("Rectangle Height", &rectangleHeight, 0.0f, 2.0f);
             ImGui::SliderFloat("Rectangle Beta", &rectBeta, 0.0f, 1.0f);
         }
-
+        if (ImGui::CollapsingHeader("Cube Settings")){
+            if (ImGui::Button("show Cube")){
+                showCube = !showCube;
+            }
+        }
         ImGui::End();
     }
     ImGui::Render();
@@ -154,6 +206,7 @@ int main()
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+    glEnable(GL_DEPTH_TEST);
 
     //imgui
     IMGUI_CHECKVERSION();
@@ -171,8 +224,8 @@ int main()
     // build and compile our shader program
     // ------------------------------------
     Shader triShader("src\\tri_shader.vs", "src\\tri_shader.fs"); // you can name your shader files however you like
-    Shader rectShader("src\\rect_shader.vs", "src\\rect_shader.fs"); // you can name your shader files however you like
-    
+    Shader rectShader("src\\rect_shader.vs", "src\\rect_shader.fs");
+    Shader cubeShader("src\\cube_shader.vs", "src\\cube_shader.fs"); 
 
     unsigned int VBO_tri, VAO_tri;
     glGenVertexArrays(1, &VAO_tri);
@@ -212,6 +265,18 @@ int main()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+    unsigned int VBO_cube, VAO_cube;
+    glGenVertexArrays(1, &VAO_cube);
+    glGenBuffers(1, &VBO_cube);
+    glBindVertexArray(VAO_cube);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     unsigned int texture1;
     glGenTextures(1, &texture1);
@@ -260,6 +325,10 @@ int main()
     rectShader.setInt("texture1", 0);
     rectShader.setInt("texture2", 1);
 
+    cubeShader.use();
+    cubeShader.setInt("texture1", 0);
+    cubeShader.setInt("texture2", 1);
+
 
     // render loop
     // -----------
@@ -268,6 +337,28 @@ int main()
     float colorVal = 0.0f;
     float colorVal2 = 0.0f;
     float colorVal3 = 0.0f;
+
+    int MAX_CUBE_NUM = 10;
+    // std::vector<glm::vec3> cube_positions;
+    // for (int i = 0;i < MAX_CUBE_NUM;++i){
+    //     cube_positions.push_back(
+    //         glm::vec3(0.1 * (rand() % 20), 0.1 * (rand() % 20), 0.1 * (rand() % 20))
+    //     );
+    //     // std::cout<< cube_positions[i].x << " " << cube_positions[i].y << " " << cube_positions[i].z << std::endl;
+    // }
+
+    glm::vec3 cube_positions[] = {
+        glm::vec3( 0.0f,  0.0f,  0.0f),
+        glm::vec3( 2.0f,  5.0f, -15.0f),
+        glm::vec3(-1.5f, -2.2f, -2.5f),
+        glm::vec3(-3.8f, -2.0f, -12.3f),
+        glm::vec3( 2.4f, -0.4f, -3.5f),
+        glm::vec3(-1.7f,  3.0f, -7.5f),
+        glm::vec3( 1.3f, -2.0f, -2.5f),
+        glm::vec3( 1.5f,  2.0f, -2.5f),
+        glm::vec3( 1.5f,  0.2f, -1.5f),
+        glm::vec3(-1.3f,  1.0f, -1.5f)
+    };
     
     while (!glfwWindowShouldClose(window))
     {
@@ -278,9 +369,43 @@ int main()
         // render
         // ------
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         my_gui();
+
+        // render the cube
+        if (showCube) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texture1);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, texture2);
+
+            cubeShader.use();
+
+            // make sure to initialize matrix to identity matrix first
+            glm::mat4 cube_view          = glm::mat4(1.0f);
+            glm::mat4 cube_projection    = glm::mat4(1.0f);
+            cube_view  = glm::translate(cube_view, glm::vec3(0.0f, 0.0f, -3.0f));
+            cube_projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+
+            unsigned int cube_viewLoc  = glGetUniformLocation(cubeShader.ID, "view");
+            unsigned int cube_projectionLoc = glGetUniformLocation(cubeShader.ID, "projection");
+
+            glUniformMatrix4fv(cube_viewLoc, 1, GL_FALSE, glm::value_ptr(cube_view));
+            glUniformMatrix4fv(cube_projectionLoc, 1, GL_FALSE, glm::value_ptr(cube_projection));
+
+            glBindVertexArray(VAO_cube);
+            for (int i = 0;i < MAX_CUBE_NUM;++i){
+                glm::mat4 cube_model         = glm::mat4(1.0f);
+                cube_model = glm::translate(cube_model, cube_positions[i]);
+                float angle = 20.0f * (i + 5.0f);
+                cube_model = glm::rotate(cube_model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+                unsigned int cube_modelLoc = glGetUniformLocation(cubeShader.ID, "model");
+                glUniformMatrix4fv(cube_modelLoc, 1, GL_FALSE, glm::value_ptr(cube_model));
+            
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+            }
+        }
 
         // render the rectangle
         if (showRectangle){
