@@ -170,8 +170,8 @@ int main()
 
     // build and compile our shader program
     // ------------------------------------
-    Shader triShader("F:\\openGL\\Project\\src\\tri_shader.vs", "F:\\openGL\\Project\\src\\tri_shader.fs"); // you can name your shader files however you like
-    Shader rectShader("F:\\openGL\\Project\\src\\rect_shader.vs", "F:\\openGL\\Project\\src\\rect_shader.fs"); // you can name your shader files however you like
+    Shader triShader("src\\tri_shader.vs", "src\\tri_shader.fs"); // you can name your shader files however you like
+    Shader rectShader("src\\rect_shader.vs", "src\\rect_shader.fs"); // you can name your shader files however you like
     
 
     unsigned int VBO_tri, VAO_tri;
@@ -223,7 +223,7 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     // 加载并生成纹理
     int width, height, nrChannels;
-    unsigned char *data = stbi_load("F:\\openGL\\Project\\src\\container.jpg", &width, &height, &nrChannels, 0);
+    unsigned char *data = stbi_load("src\\container.jpg", &width, &height, &nrChannels, 0);
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
@@ -244,7 +244,7 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    data = stbi_load("F:\\openGL\\Project\\src\\laugh.png", &width, &height, &nrChannels, 0);
+    data = stbi_load("src\\laugh.png", &width, &height, &nrChannels, 0);
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
