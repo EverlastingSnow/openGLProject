@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "cmath": "cpp"
+    },
+    "clangd.fallbackFlags": [
+        "-I${workspaceFolder}/include",
+        "-I${workspaceFolder}",
+        "-I${workspaceFolder}/src"
+    ]
+}
