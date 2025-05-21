@@ -10,11 +10,13 @@
 #include <GLFW/glfw3.h>
 
 #include "shader.h"
+#include "camera.h"
 
 #include <cmath>
 #include <iostream>
-#include <vector>
-#include <random>
+
+// #include <vector>
+// #include <random>
 
 // #include <imgui/imgui.h>
 // #include <imgui/imgui_impl_glfw.h>
@@ -27,6 +29,9 @@
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
 
 // settings
 bool spin_rectangle = false;
@@ -34,6 +39,10 @@ bool showTriangle = false;
 bool random_triangleColor = false;
 bool showRectangle = false;
 bool showCube = false;
+bool multipleCubes = false;
+bool spinCubeView = false;
+bool freeMoveCube = false;
+bool firstMouse = true;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
@@ -109,6 +118,21 @@ float cube_vertices[] = {
     -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
+float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
+float pitch = 0.0f;
+float fov   =  45.0f;
+
+float lastX = SCR_WIDTH / 2.0f, lastY = SCR_HEIGHT / 2.0f;
+
+// camera
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
+
+// timing
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
+
 ImVec4 triangleColor1 = ImVec4(1.0f, 0.0f, 0.0f, 0.0f);
 ImVec4 triangleColor2 = ImVec4(0.0f, 1.0f, 0.0f, 0.0f);
 ImVec4 triangleColor3 = ImVec4(0.0f, 0.0f, 1.0f, 0.0f);
@@ -166,6 +190,15 @@ void my_gui(){
             if (ImGui::Button("show Cube")){
                 showCube = !showCube;
             }
+            if (ImGui::Button("multiple Cubes")){
+                multipleCubes = !multipleCubes;
+            }
+            if (ImGui::Button("spin view")){
+                spinCubeView = !spinCubeView;
+            }
+            if (ImGui::Button("free move")){
+                freeMoveCube = !freeMoveCube;
+            }
         }
         ImGui::End();
     }
@@ -173,7 +206,25 @@ void my_gui(){
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+// glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+// glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+// glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
+// glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+// glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
+// glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
 
+
+/*
+R:cameraRight
+U:cameraUp
+D:cameraDirection
+P:cameraPos
+LookAt Matrix:
+| Rx Ry Rz 0 |    | 1 0 0 -Px |
+| Ux Uy Uz 0 |    | 0 1 0 -Py |
+| Dx Dy Dz 0 |  * | 0 0 1 -Pz |
+|  0  0  0 1 |    | 0 0 0  1  |
+*/
 int main()
 {
     // glfw: initialize and configure
@@ -189,7 +240,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "myOpenGLProj", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -198,6 +249,8 @@ int main()
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -362,6 +415,10 @@ int main()
     
     while (!glfwWindowShouldClose(window))
     {
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
         // input
         // -----
         processInput(window);
@@ -385,8 +442,28 @@ int main()
             // make sure to initialize matrix to identity matrix first
             glm::mat4 cube_view          = glm::mat4(1.0f);
             glm::mat4 cube_projection    = glm::mat4(1.0f);
-            cube_view  = glm::translate(cube_view, glm::vec3(0.0f, 0.0f, -3.0f));
-            cube_projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            // cube_view  = glm::translate(cube_view, glm::vec3(0.0f, 0.0f, -3.0f));
+            float camera_radius = 10.0f;
+            float camera_X = sin(glfwGetTime()) * camera_radius;
+            float camera_Z = cos(glfwGetTime()) * camera_radius;
+            if (!spinCubeView){
+                camera_X = 0.0f;
+                camera_Z = -3.0f;
+            }
+            if (freeMoveCube){
+                cube_view =
+                    glm::lookAt(
+                        cameraPos, cameraPos + cameraFront, cameraUp
+                    );
+            }else{
+                cube_view =
+                    glm::lookAt(
+                        glm::vec3(camera_X, 0.0f, camera_Z),
+                        glm::vec3(0.0f, 0.0f, 0.0f),
+                        glm::vec3(0.0f, 1.0f, 0.0f)
+                    );
+            }
+            cube_projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
 
             unsigned int cube_viewLoc  = glGetUniformLocation(cubeShader.ID, "view");
             unsigned int cube_projectionLoc = glGetUniformLocation(cubeShader.ID, "projection");
@@ -395,10 +472,13 @@ int main()
             glUniformMatrix4fv(cube_projectionLoc, 1, GL_FALSE, glm::value_ptr(cube_projection));
 
             glBindVertexArray(VAO_cube);
+            if (multipleCubes){
+                MAX_CUBE_NUM = 10;
+            }else MAX_CUBE_NUM = 1;
             for (int i = 0;i < MAX_CUBE_NUM;++i){
                 glm::mat4 cube_model         = glm::mat4(1.0f);
                 cube_model = glm::translate(cube_model, cube_positions[i]);
-                float angle = 20.0f * (i + 5.0f);
+                float angle = 20.0f * i;
                 cube_model = glm::rotate(cube_model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
                 unsigned int cube_modelLoc = glGetUniformLocation(cubeShader.ID, "model");
                 glUniformMatrix4fv(cube_modelLoc, 1, GL_FALSE, glm::value_ptr(cube_model));
@@ -508,6 +588,17 @@ void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    float cameraSpeed = static_cast<float>(2.5 * deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    // std::cout << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << std::endl;
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -517,4 +608,46 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     // make sure the viewport matches the new window dimensions; note that width and 
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
+}
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if(firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; 
+    lastX = xpos;
+    lastY = ypos;
+
+    float sensitivity = 0.05;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw   += xoffset;
+    pitch += yoffset;
+
+    if(pitch > 89.0f)
+        pitch = 89.0f;
+    if(pitch < -89.0f)
+        pitch = -89.0f;
+
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.y = sin(glm::radians(pitch));
+    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(front);
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    if(fov >= 1.0f && fov <= 90.0f)
+        fov -= yoffset;
+    if(fov <= 1.0f)
+        fov = 1.0f;
+    if(fov >= 90.0f)
+        fov = 90.0f;
 }
