@@ -409,6 +409,25 @@ int main()
             glBindTexture(GL_TEXTURE_2D, texture2);
 
             cubeShader.use();
+            cubeShader.setVec3("light.position", lightPos);
+            cubeShader.setVec3("viewPos", camera.Position);
+
+            // light properties
+            glm::vec3 lightColor;
+            lightColor.x = static_cast<float>(sin(glfwGetTime() * 2.0));
+            lightColor.y = static_cast<float>(sin(glfwGetTime() * 0.7));
+            lightColor.z = static_cast<float>(sin(glfwGetTime() * 1.3));
+            glm::vec3 diffuseColor = lightColor   * glm::vec3(0.5f); // decrease the influence
+            glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f); // low influence
+            cubeShader.setVec3("light.ambient", ambientColor);
+            cubeShader.setVec3("light.diffuse", diffuseColor);
+            cubeShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
+
+            // material properties
+            cubeShader.setVec3("material.ambient", 1.0f, 0.5f, 0.31f);
+            cubeShader.setVec3("material.diffuse", 1.0f, 0.5f, 0.31f);
+            cubeShader.setVec3("material.specular", 0.5f, 0.5f, 0.5f); // specular lighting doesn't have full effect on this object's material
+            cubeShader.setFloat("material.shininess", 32.0f);
 
             // make sure to initialize matrix to identity matrix first
             glm::mat4 cube_view          = glm::mat4(1.0f);
