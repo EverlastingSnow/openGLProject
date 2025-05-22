@@ -43,24 +43,17 @@ bool showRectangle = false;
 bool showCube = false;
 bool multipleCubes = false;
 bool spinCubeView = false;
-bool freeMoveCube = false;
 bool firstMouse = true;
 bool showLight = false;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 
-glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
 
 // camera
-Camera camera(glm::vec3(0.0f, 0.0f, 6.0f));
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 float lastX = SCR_WIDTH / 2.0f, lastY = SCR_HEIGHT / 2.0f;
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
-float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
-float pitch = 0.0f;
-float fov   =  45.0f;
+
 
 // timing
 float deltaTime = 0.0f;	// time between current frame and last frame
@@ -129,9 +122,6 @@ void my_gui(){
             }
             if (ImGui::Button("spin view")){
                 spinCubeView = !spinCubeView;
-            }
-            if (ImGui::Button("free move")){
-                freeMoveCube = !freeMoveCube;
             }
         }
 
@@ -259,14 +249,24 @@ int main()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+    
+
+    unsigned int texture1 = loadTexture("src\\container.jpg");
+    unsigned int texture2 = loadTexture("src\\laugh.png");
+    
+    rectShader.use();
+    rectShader.setFloat("Beta", rectBeta);
+    rectShader.setInt("texture1", 0);
+    rectShader.setInt("texture2", 1);
 
     unsigned int VBO_cube, VAO_cube;
     glGenVertexArrays(1, &VAO_cube);
     glGenBuffers(1, &VBO_cube);
-    glBindVertexArray(VAO_cube);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+
+    glBindVertexArray(VAO_cube);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
@@ -276,31 +276,21 @@ int main()
 
     unsigned int lightVAO;
     glGenVertexArrays(1, &lightVAO);
-
     glBindVertexArray(lightVAO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_cube);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    unsigned int texture1 = loadTexture("src\\container.jpg");
-
-    unsigned int texture2 = loadTexture("src\\laugh.png");
-
     unsigned int diffuseMap = loadTexture("src\\container2.png");
+    unsigned int specularMap = loadTexture("src\\container2_specular.png");
 
-    rectShader.use();
-    rectShader.setFloat("Beta", rectBeta);
-    rectShader.setInt("texture1", 0);
-    rectShader.setInt("texture2", 1);
+    
 
     cubeShader.use();
-    // cubeShader.setInt("texture1", 0);
-    // cubeShader.setInt("texture2", 1);
     cubeShader.setInt("material.diffuse", 0);
-    unsigned int objectColorLoc = glGetUniformLocation(cubeShader.ID, "objectColor");
-    unsigned int lightColorLoc = glGetUniformLocation(cubeShader.ID, "lightColor");
-    glUniform3f(objectColorLoc, 1.0f, 0.5f, 0.31f);
-    glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
+    cubeShader.setInt("material.specular", 1);
+    
 
     // render loop
     // -----------
@@ -318,19 +308,6 @@ int main()
     //     );
     //     // std::cout<< cube_positions[i].x << " " << cube_positions[i].y << " " << cube_positions[i].z << std::endl;
     // }
-
-    glm::vec3 cube_positions[] = {
-        glm::vec3( 0.0f,  0.0f,  0.0f),
-        glm::vec3( 2.0f,  5.0f, -15.0f),
-        glm::vec3(-1.5f, -2.2f, -2.5f),
-        glm::vec3(-3.8f, -2.0f, -12.3f),
-        glm::vec3( 2.4f, -0.4f, -3.5f),
-        glm::vec3(-1.7f,  3.0f, -7.5f),
-        glm::vec3( 1.3f, -2.0f, -2.5f),
-        glm::vec3( 1.5f,  2.0f, -2.5f),
-        glm::vec3( 1.5f,  0.2f, -1.5f),
-        glm::vec3(-1.3f,  1.0f, -1.5f)
-    };
     
     while (!glfwWindowShouldClose(window))
     {
@@ -351,84 +328,100 @@ int main()
 
         // render the light
         if (showLight){
+            glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 view = camera.GetViewMatrix();
             lightShader.use();
-            glm::mat4 light_projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-            glm::mat4 light_view = camera.GetViewMatrix();
-            unsigned int light_projectionLoc = glGetUniformLocation(lightShader.ID, "projection");
-            glUniformMatrix4fv(light_projectionLoc, 1, GL_FALSE, glm::value_ptr(light_projection));
-            unsigned int light_viewLoc = glGetUniformLocation(lightShader.ID, "view");
-            glUniformMatrix4fv(light_viewLoc, 1, GL_FALSE, glm::value_ptr(light_view));
-            glm::mat4 light_model = glm::mat4(1.0f);
-            light_model = glm::mat4(1.0f);
-            light_model = glm::translate(light_model, lightPos);
-            light_model = glm::scale(light_model, glm::vec3(0.2f)); // a smaller cube
-            unsigned int light_modelLoc = glGetUniformLocation(lightShader.ID, "model");
-            glUniformMatrix4fv(light_modelLoc, 1, GL_FALSE, glm::value_ptr(light_model));
-
+            lightShader.setMat4("projection", projection);
+            lightShader.setMat4("view", view);
+       
+            // we now draw as many light bulbs as we have point lights.
             glBindVertexArray(lightVAO);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            for (unsigned int i = 0; i < 4; i++)
+            {
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, pointLightPositions[i]);
+                model = glm::scale(model, glm::vec3(0.2f)); // Make it a smaller cube
+                lightShader.setMat4("model", model);
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+            }
+   
         }
 
         // render the cube
         if (showCube) {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture1);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, texture2);
 
             cubeShader.use();
-            cubeShader.setVec3("light.position", lightPos);
+            // cubeShader.setVec3("light.position", lightPos);
+            // cubeShader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
             cubeShader.setVec3("viewPos", camera.Position);
+            cubeShader.setFloat("material.shiniess", 32.0f);
 
             // light properties
-            glm::vec3 lightColor;
-            lightColor.x = static_cast<float>(sin(glfwGetTime() * 2.0));
-            lightColor.y = static_cast<float>(sin(glfwGetTime() * 0.7));
-            lightColor.z = static_cast<float>(sin(glfwGetTime() * 1.3));
-            glm::vec3 diffuseColor = lightColor   * glm::vec3(0.5f); // decrease the influence
-            glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f); // low influence
-            cubeShader.setVec3("light.ambient", ambientColor);
-            cubeShader.setVec3("light.diffuse", diffuseColor);
-            cubeShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
-
-            // material properties
-            cubeShader.setVec3("material.specular", 0.5f, 0.5f, 0.5f);
-            cubeShader.setFloat("material.shininess", 64.0f);
+            cubeShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+            cubeShader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
+            cubeShader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
+            cubeShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+            // point light 1
+            cubeShader.setVec3("pointLights[0].position", pointLightPositions[0]);
+            cubeShader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
+            cubeShader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
+            cubeShader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
+            cubeShader.setFloat("pointLights[0].constant", 1.0f);
+            cubeShader.setFloat("pointLights[0].linear", 0.09f);
+            cubeShader.setFloat("pointLights[0].quadratic", 0.032f);
+            // point light 2
+            cubeShader.setVec3("pointLights[1].position", pointLightPositions[1]);
+            cubeShader.setVec3("pointLights[1].ambient", 0.05f, 0.05f, 0.05f);
+            cubeShader.setVec3("pointLights[1].diffuse", 0.8f, 0.8f, 0.8f);
+            cubeShader.setVec3("pointLights[1].specular", 1.0f, 1.0f, 1.0f);
+            cubeShader.setFloat("pointLights[1].constant", 1.0f);
+            cubeShader.setFloat("pointLights[1].linear", 0.09f);
+            cubeShader.setFloat("pointLights[1].quadratic", 0.032f);
+            // point light 3
+            cubeShader.setVec3("pointLights[2].position", pointLightPositions[2]);
+            cubeShader.setVec3("pointLights[2].ambient", 0.05f, 0.05f, 0.05f);
+            cubeShader.setVec3("pointLights[2].diffuse", 0.8f, 0.8f, 0.8f);
+            cubeShader.setVec3("pointLights[2].specular", 1.0f, 1.0f, 1.0f);
+            cubeShader.setFloat("pointLights[2].constant", 1.0f);
+            cubeShader.setFloat("pointLights[2].linear", 0.09f);
+            cubeShader.setFloat("pointLights[2].quadratic", 0.032f);
+            // point light 4
+            cubeShader.setVec3("pointLights[3].position", pointLightPositions[3]);
+            cubeShader.setVec3("pointLights[3].ambient", 0.05f, 0.05f, 0.05f);
+            cubeShader.setVec3("pointLights[3].diffuse", 0.8f, 0.8f, 0.8f);
+            cubeShader.setVec3("pointLights[3].specular", 1.0f, 1.0f, 1.0f);
+            cubeShader.setFloat("pointLights[3].constant", 1.0f);
+            cubeShader.setFloat("pointLights[3].linear", 0.09f);
+            cubeShader.setFloat("pointLights[3].quadratic", 0.032f);
+            // spotLight
+            cubeShader.setVec3("spotLight.position", camera.Position);
+            cubeShader.setVec3("spotLight.direction", camera.Front);
+            cubeShader.setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
+            cubeShader.setVec3("spotLight.diffuse", 1.0f, 1.0f, 1.0f);
+            cubeShader.setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
+            cubeShader.setFloat("spotLight.constant", 1.0f);
+            cubeShader.setFloat("spotLight.linear", 0.09f);
+            cubeShader.setFloat("spotLight.quadratic", 0.032f);
+            cubeShader.setFloat("spotLight.cutOff", glm::cos(glm::radians(12.5f)));
+            cubeShader.setFloat("spotLight.outerCutOff", glm::cos(glm::radians(15.0f)));     
 
             // make sure to initialize matrix to identity matrix first
             glm::mat4 cube_view          = glm::mat4(1.0f);
             glm::mat4 cube_projection    = glm::mat4(1.0f);
             // cube_view  = glm::translate(cube_view, glm::vec3(0.0f, 0.0f, -3.0f));
-            float camera_radius = 10.0f;
-            float camera_X = sin(glfwGetTime()) * camera_radius;
-            float camera_Z = cos(glfwGetTime()) * camera_radius;
-            if (!spinCubeView){
-                camera_X = 0.0f;
-                camera_Z = -3.0f;
-            }
-            if (freeMoveCube){
-                cube_view =
-                    glm::lookAt(
-                        cameraPos, cameraPos + cameraFront, cameraUp
-                    );
-            }else{
-                cube_view =
-                    glm::lookAt(
-                        glm::vec3(camera_X, 0.0f, camera_Z),
-                        glm::vec3(0.0f, 0.0f, 0.0f),
-                        glm::vec3(0.0f, 1.0f, 0.0f)
-                    );
-            }
-            cube_projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            cube_projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            cube_view = camera.GetViewMatrix();
+            cubeShader.setMat4("view", cube_view);
+            cubeShader.setMat4("projection", cube_projection);
 
-            unsigned int cube_viewLoc  = glGetUniformLocation(cubeShader.ID, "view");
-            unsigned int cube_projectionLoc = glGetUniformLocation(cubeShader.ID, "projection");
-
-            glUniformMatrix4fv(cube_viewLoc, 1, GL_FALSE, glm::value_ptr(cube_view));
-            glUniformMatrix4fv(cube_projectionLoc, 1, GL_FALSE, glm::value_ptr(cube_projection));
+            glm::mat4 model = glm::mat4(1.0f);
+            cubeShader.setMat4("model", model);
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, diffuseMap);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, specularMap);
 
             glBindVertexArray(VAO_cube);
             if (multipleCubes){
@@ -437,10 +430,12 @@ int main()
             for (int i = 0;i < MAX_CUBE_NUM;++i){
                 glm::mat4 cube_model         = glm::mat4(1.0f);
                 cube_model = glm::translate(cube_model, cube_positions[i]);
-                float angle = 20.0f * (i + 5.0f);
-                cube_model = glm::rotate(cube_model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
-                unsigned int cube_modelLoc = glGetUniformLocation(cubeShader.ID, "model");
-                glUniformMatrix4fv(cube_modelLoc, 1, GL_FALSE, glm::value_ptr(cube_model));
+                float angle = 20.0f * i;
+                if (spinCubeView) {
+                    angle = angle * glfwGetTime();
+                } 
+                cube_model = glm::rotate(cube_model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+                cubeShader.setMat4("model", cube_model);
             
                 glDrawArrays(GL_TRIANGLES, 0, 36);
             }
@@ -551,16 +546,14 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    float cameraSpeed = static_cast<float>(2.5 * deltaTime);
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraPos -= cameraSpeed * cameraFront;
+        camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraPos += cameraSpeed * cameraFront;
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    // std::cout << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << std::endl;
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -571,9 +564,12 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
-void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
-    if(firstMouse)
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
+
+    if (firstMouse)
     {
         lastX = xpos;
         lastY = ypos;
@@ -581,44 +577,24 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; 
+    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+
     lastX = xpos;
     lastY = ypos;
 
-    float sensitivity = 0.05;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw   += xoffset;
-    pitch += yoffset;
-
-    if(pitch > 89.0f)
-        pitch = 89.0f;
-    if(pitch < -89.0f)
-        pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front.y = sin(glm::radians(pitch));
-    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    cameraFront = glm::normalize(front);
+    camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    if(fov >= 1.0f && fov <= 90.0f)
-        fov -= yoffset;
-    if(fov <= 1.0f)
-        fov = 1.0f;
-    if(fov >= 90.0f)
-        fov = 90.0f;
+    camera.ProcessMouseScroll(static_cast<float>(yoffset));
 }
 
 unsigned int loadTexture(char const * path)
 {
     unsigned int textureID;
     glGenTextures(1, &textureID);
-    
+
     int width, height, nrComponents;
     unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
     if (data)
