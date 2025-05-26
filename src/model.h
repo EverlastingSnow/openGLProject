@@ -58,7 +58,7 @@ private:
             return;
         }
         // retrieve the directory path of the filepath
-        directory = path.substr(0, path.find_last_of('\\'));
+        directory = path.substr(0, path.find_last_of('/'));
 
 
         // process ASSIMP's root node recursively
@@ -177,6 +177,7 @@ private:
         {
             aiString str;
             mat->GetTexture(type, i, &str);
+            std::cout<<str.C_Str()<<std::endl;
             // check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
             bool skip = false;
             for(unsigned int j = 0; j < textures_loaded.size(); j++)
@@ -237,6 +238,7 @@ unsigned int TextureFromFile(const char *path, const string &directory, bool gam
     }
     else
     {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
         stbi_image_free(data);
     }
 

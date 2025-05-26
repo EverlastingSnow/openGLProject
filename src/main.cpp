@@ -15,10 +15,13 @@
 
 #include <cmath>
 #include <iostream>
+#include <memory>
+#include <string>
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "imgui_stdlib.h" // 用于std::string的ImGui输入
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -33,11 +36,13 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void define_light_properties(Shader& shader);
+void drawModel(Shader& shader, Model& loadedModel);
 
 unsigned int loadTexture(char const * path);
 
 
 // settings
+int lightMode = 0;
 bool spin_rectangle = false;
 bool showTriangle = false;
 bool random_triangleColor = false;
@@ -47,11 +52,19 @@ bool multipleCubes = false;
 bool spinCubeView = false;
 bool firstMouse = true;
 bool showLight = false;
-bool showApple = false;
+bool showModel = false;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
+glm::vec3 lightPos(0.0f, 0.0f, 0.0f);
 
+// model settings
+std::string modelPath = "resources/apple/Model.obj"; // 默认模型路径
+std::unique_ptr<Model> loadedModel; // 使用智能指针管理模型
+float modelScale = 1.0f;
+glm::vec3 modelPosition(0.0f, 0.0f, -5.0f);
+float modelRotationAngle = 0.0f;
+glm::vec3 modelRotationAxis(0.0f, 1.0f, 0.0f);
 
 // camera
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -131,38 +144,60 @@ void my_gui(){
             if (ImGui::Button("show Light cubes")){
                 showLight = !showLight;
             }
-        }
-
-        if (ImGui::CollapsingHeader("apple Settings")){
-            if (ImGui::Button("show apple")){
-                showApple = !showApple;
+            ImGui::Text("Select Light Mode:");
+            if (ImGui::RadioButton("Default", lightMode == 0)) {
+                lightMode = 0;
+            }
+            if (ImGui::RadioButton("Blinn", lightMode == 1)) {
+                lightMode = 1;
+            }
+            if (ImGui::RadioButton("Pbr", lightMode == 2)) {
+                lightMode = 2;
             }
         }
+
+        // Model Settings
+        if (ImGui::CollapsingHeader("Model Settings")) {
+            // 模型路径输入
+            ImGui::InputText("Model Path", &modelPath);
+            
+            // 加载模型按钮
+            if (ImGui::Button("Load Model")) {
+                try {
+                    loadedModel = std::make_unique<Model>(modelPath);
+                    showModel = true;
+                } catch (...) {
+                    ImGui::OpenPopup("Load Error");
+                }
+            }
+            
+            // 加载错误提示
+            if (ImGui::BeginPopupModal("Load Error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::Text("Failed to load model at path: %s", modelPath.c_str());
+                if (ImGui::Button("OK")) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            
+            // 模型显示控制
+            if (loadedModel) {
+                ImGui::Checkbox("Show Model", &showModel);
+                
+                // 模型变换参数
+                ImGui::SliderFloat3("Position", &modelPosition.x, -100.0f, 100.0f);
+                ImGui::SliderFloat("Scale", &modelScale, 0.001f, 20.0f);
+                ImGui::SliderFloat("Rotation Angle", &modelRotationAngle, 0.0f, 360.0f);
+                ImGui::SliderFloat3("Rotation Axis", &modelRotationAxis.x, -10.0f, 10.0f);
+            }
+        }
+
         ImGui::End();
     }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-// glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-// glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-// glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
-// glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-// glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
-// glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
-
-
-/*
-R:cameraRight
-U:cameraUp
-D:cameraDirection
-P:cameraPos
-LookAt Matrix:
-| Rx Ry Rz 0 |    | 1 0 0 -Px |
-| Ux Uy Uz 0 |    | 0 1 0 -Py |
-| Dx Dy Dz 0 |  * | 0 0 1 -Pz |
-|  0  0  0 1 |    | 0 0 0  1  |
-*/
 int main()
 {
     // glfw: initialize and configure
@@ -199,6 +234,9 @@ int main()
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     //imgui
     IMGUI_CHECKVERSION();
@@ -213,25 +251,41 @@ int main()
     // 设置样式
     ImGui::StyleColorsDark();
 
-    // Assimp::Importer importer;
-    // const aiScene* scene = importer.ReadFile("resources\\apple\\Model.obj", aiProcess_Triangulate);
-    // if (!scene) {
-    //     std::cerr << "Assimp Error: " << importer.GetErrorString() << std::endl;
-    //     return -1;
-    // }
-    // std::cout << "Model loaded successfully!" << std::endl;
-    // return 0;
-
     // build and compile our shader program
     // ------------------------------------
-    Shader triShader("fs_vs\\tri_shader.vs", "fs_vs\\tri_shader.fs"); // you can name your shader files however you like
-    Shader rectShader("fs_vs\\rect_shader.vs", "fs_vs\\rect_shader.fs");
-    Shader cubeShader("fs_vs\\cube_shader.vs", "fs_vs\\cube_shader.fs"); 
-    Shader lightShader("fs_vs\\light_shader.vs", "fs_vs\\light_shader.fs");
-    // Shader appleShader("fs_vs\\apple_shader.vs", "fs_vs\\apple_shader.fs");
-    Shader appleShader("fs_vs\\cube_shader.vs", "fs_vs\\cube_shader.fs");
+    Shader triShader("fs_vs/tri_shader.vs", "fs_vs/tri_shader.fs"); // you can name your shader files however you like
+    Shader rectShader("fs_vs/rect_shader.vs", "fs_vs/rect_shader.fs");
+    Shader cubeShader("fs_vs/cube_shader.vs", "fs_vs/cube_shader.fs"); 
+    Shader lightShader("fs_vs/light_shader.vs", "fs_vs/light_shader.fs");
+    Shader blinnShader("fs_vs/blinn_shader.vs", "fs_vs/blinn_shader.fs");
+    Shader pbrShader("fs_vs/pbr_shader.vs", "fs_vs/pbr_shader.fs");
 
-    Model appleModel("resources\\apple\\Model.obj");
+    pbrShader.use();
+    pbrShader.setVec3("albedo", 1.0f, 1.0f, 1.0f);
+    pbrShader.setFloat("ao", 1.0f);
+    pbrShader.setVec3("camPos", camera.Position);
+    pbrShader.setFloat("roughness", glm::clamp(0.5f, 0.05f, 1.0f));
+    pbrShader.setFloat("metallic", 0.3f);
+    for (unsigned int i = 0; i < sizeof(lightPositions) / sizeof(lightPositions[0]); ++i)
+    {
+        glm::vec3 newPos = lightPositions[i] + glm::vec3(sin(glfwGetTime() * 5.0) * 5.0, 0.0, 0.0);
+        newPos = lightPositions[i];
+        pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", newPos);
+        pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", lightColors[i]);
+
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, newPos);
+        model = glm::scale(model, glm::vec3(0.5f));
+        pbrShader.setMat4("model", model);
+        pbrShader.setMat3("normalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
+    }
+    
+
+    blinnShader.use();
+    blinnShader.setVec3("viewPos", camera.Position);
+    blinnShader.setVec3("lightPos", lightPos);
+    
+
 
     unsigned int VBO_tri, VAO_tri;
     glGenVertexArrays(1, &VAO_tri);
@@ -273,8 +327,8 @@ int main()
     glEnableVertexAttribArray(2);
     
 
-    unsigned int texture1 = loadTexture("resources\\container.jpg");
-    unsigned int texture2 = loadTexture("resources\\laugh.png");
+    unsigned int texture1 = loadTexture("resources/container.jpg");
+    unsigned int texture2 = loadTexture("resources/laugh.png");
     
     rectShader.use();
     rectShader.setFloat("Beta", rectBeta);
@@ -304,10 +358,8 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    unsigned int diffuseMap = loadTexture("resources\\container2.png");
-    unsigned int specularMap = loadTexture("resources\\container2_specular.png");
-
-    
+    unsigned int diffuseMap = loadTexture("resources/container2.png");
+    unsigned int specularMap = loadTexture("resources/container2_specular.png");
 
     cubeShader.use();
     cubeShader.setInt("material.diffuse", 0);
@@ -323,13 +375,6 @@ int main()
     float colorVal3 = 0.0f;
 
     int MAX_CUBE_NUM = 10;
-    // std::vector<glm::vec3> cube_positions;
-    // for (int i = 0;i < MAX_CUBE_NUM;++i){
-    //     cube_positions.push_back(
-    //         glm::vec3(0.1 * (rand() % 20), 0.1 * (rand() % 20), 0.1 * (rand() % 20))
-    //     );
-    //     // std::cout<< cube_positions[i].x << " " << cube_positions[i].y << " " << cube_positions[i].z << std::endl;
-    // }
     
     while (!glfwWindowShouldClose(window))
     {
@@ -348,24 +393,24 @@ int main()
 
         my_gui();
 
-        // render the apple
-        if (showApple) {
-            define_light_properties(appleShader);
-
-            appleShader.use();
-            glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-            glm::mat4 view = camera.GetViewMatrix();
-            appleShader.setMat4("projection", projection);
-            appleShader.setMat4("view", view);
-
-            // render the loaded model
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(1.0f, 0.0f, -5.0f));
-            model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));	
-            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-            appleShader.setMat4("model", model);
-            appleModel.Draw(appleShader);
-
+        // render the loaded model
+        if (showModel && loadedModel) {
+            switch (lightMode){
+                case 0:
+                    define_light_properties(cubeShader);
+                    drawModel(cubeShader, *loadedModel.get());
+                    break;
+                case 1:
+                    drawModel(blinnShader, *loadedModel.get());
+                    break;
+                case 2:
+                    drawModel(pbrShader, *loadedModel.get());
+                    break;
+                default:
+                    define_light_properties(cubeShader);
+                    drawModel(cubeShader, *loadedModel.get());
+                    break;
+            }
         }
 
         // render the light
@@ -525,6 +570,42 @@ int main()
     glfwTerminate();
     return 0;
 }
+void drawModel(Shader& shader, Model& loadedModel) {
+    shader.use();
+    
+    // 设置通用的uniform变量
+    glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 view = camera.GetViewMatrix();
+    shader.setMat4("projection", projection);
+    shader.setMat4("view", view);
+    
+    // 根据光照模式设置特定的uniform变量
+    switch(lightMode) {
+        case 0: // Default
+            define_light_properties(shader);
+            break;
+        case 1: // Blinn
+            shader.setVec3("viewPos", camera.Position);
+            shader.setVec3("lightPos", lightPos);
+            break;
+        case 2: // PBR
+            shader.setVec3("camPos", camera.Position);
+            for (unsigned int i = 0; i < sizeof(lightPositions) / sizeof(lightPositions[0]); ++i) {
+                shader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
+                shader.setVec3("lightColors[" + std::to_string(i) + "]", lightColors[i]);
+            }
+            break;
+    }
+
+    // 渲染模型
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, modelPosition);
+    model = glm::scale(model, glm::vec3(modelScale));
+    model = glm::rotate(model, glm::radians(modelRotationAngle), modelRotationAxis);
+    shader.setMat4("model", model);
+    loadedModel.Draw(shader);
+}
+
 void define_light_properties(Shader& shader){
     shader.use();
     // shader.setVec3("light.position", lightPos);
@@ -643,9 +724,9 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
     glm::vec2 ndcDelta = delta / glm::vec2(width, height);
     
     // 旋转速度控制
-    float rotationSpeed = 5.0f;
+    float rotationSpeed = 20.0f;
     float horizontalAngle = ndcDelta.x * rotationSpeed;
-    float verticalAngle = ndcDelta.y * rotationSpeed;
+    float verticalAngle = -ndcDelta.y * rotationSpeed;
 
     // 当前相机位置相对于焦点的向量
     glm::vec3 relativePos = camera.Position - focusPoint;

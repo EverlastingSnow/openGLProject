@@ -1,0 +1,14 @@
+imgui.o: src/imgui.cpp src/imgui.h src/imconfig.h src/imgui_internal.h
+imgui_demo.o: src/imgui_demo.cpp src/imgui.h src/imconfig.h
+imgui_draw.o: src/imgui_draw.cpp src/imgui.h src/imconfig.h \
+ src/imgui_internal.h src/imstb_rectpack.h src/imstb_truetype.h
+imgui_impl_glfw.o: src/imgui_impl_glfw.cpp src/imgui.h src/imconfig.h \
+ src/imgui_impl_glfw.h
+imgui_impl_opengl3.o: src/imgui_impl_opengl3.cpp src/imgui.h \
+ src/imconfig.h src/imgui_impl_opengl3.h src/imgui_impl_opengl3_loader.h
+imgui_stdlib.o: src/imgui_stdlib.cpp src/imgui.h src/imconfig.h \
+ src/imgui_stdlib.h
+imgui_tables.o: src/imgui_tables.cpp src/imgui.h src/imconfig.h \
+ src/imgui_internal.h
+imgui_widgets.o: src/imgui_widgets.cpp src/imgui.h src/imconfig.h \
+ src/imgui_internal.h src/imstb_textedit.h

@@ -61,7 +61,7 @@ $(MAIN_OBJ): $(MAIN_SRC)
 .cpp.o:
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-.PHONY: clean
+.PHONY: clean run depend
 clean:
 	$(RM) $(OUTPUTMAIN)
 	$(RM) $(MAIN_OBJ)

@@ -93,4 +93,28 @@ glm::vec3 pointLightPositions[] = {
     glm::vec3(-4.0f,  2.0f, -12.0f),
     glm::vec3( 0.0f,  0.0f, -3.0f)
 };
+
+float planeVertices[] = {
+    // positions            // normals         // texcoords
+     10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+    -10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+    -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+
+     10.0f, -0.5f,  10.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+    -10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+     10.0f, -0.5f, -10.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
+};
+
+glm::vec3 lightPositions[] = {
+    glm::vec3(-10.0f,  10.0f, 10.0f),
+    glm::vec3( 10.0f,  10.0f, 10.0f),
+    glm::vec3(-10.0f, -10.0f, 10.0f),
+    glm::vec3( 10.0f, -10.0f, 10.0f),
+};
+glm::vec3 lightColors[] = {
+    glm::vec3(300.0f, 300.0f, 300.0f),
+    glm::vec3(300.0f, 300.0f, 300.0f),
+    glm::vec3(300.0f, 300.0f, 300.0f),
+    glm::vec3(300.0f, 300.0f, 300.0f)
+};
 #endif
