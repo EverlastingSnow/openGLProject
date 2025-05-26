@@ -1,69 +1,48 @@
-#
-# 'make'        build executable file 'main'
-# 'make clean'  removes all .o and executable files
-#
-
 # define the Cpp compiler to use
 CXX = g++
 
 # define any compile-time flags
-CXXFLAGS	:= -std=c++17 -Wall -Wextra -g
+CXXFLAGS := -std=c++17 -Wall -Wextra -g
 
 # define library paths in addition to /usr/lib
-#   if I wanted to include libraries not in /usr/lib I'd specify
-#   their path using -Lpath, something like:
 LFLAGS =
 
 # define output directory
-OUTPUT	:= output
+OUTPUT := output
 
 # define source directory
-SRC		:= src
+SRC := src
 
 # define include directory
-INCLUDE	:= include
+INCLUDE := include
 
 # define lib directory
-LIB		:= lib
-LIBRARIES	:= -lglad -lglfw3dll -lfreeglut -lopengl32 -lglu32
+LIB := lib
+LIBRARIES := -lassimp -lglad -lglfw3dll -lfreeglut -lopengl32 -lglu32
 
-ifeq ($(OS),Windows_NT)
-MAIN	:= main.exe
-SOURCEDIRS	:= $(SRC)
-INCLUDEDIRS	:= $(INCLUDE)
-LIBDIRS		:= $(LIB)
-FIXPATH = $(subst /,\,$1)
-RM			:= del /q /f
-MD	:= mkdir
-else
-MAIN	:= main
-SOURCEDIRS	:= $(shell find $(SRC) -type d)
-INCLUDEDIRS	:= $(shell find $(INCLUDE) -type d)
-LIBDIRS		:= $(shell find $(LIB) -type d)
+MAIN := main
+SOURCEDIRS := $(SRC)
+INCLUDEDIRS := $(INCLUDE)
+LIBDIRS := $(LIB)
 FIXPATH = $1
 RM = rm -f
-MD	:= mkdir -p
-endif
+MD := mkdir -p
 
 # define any directories containing header files other than /usr/include
-INCLUDES	:= $(patsubst %,-I%, $(INCLUDEDIRS:%/=%)) -I$(INCLUDE)/imgui -I$(INCLUDE)/imgui/backends
+INCLUDES := $(patsubst %,-I%, $(INCLUDEDIRS:%/=%)) -I$(INCLUDE)/imgui -I$(INCLUDE)/imgui/backends -I$(INCLUDE)/assimp
 
 # define the C libs
-LIBS		:= $(patsubst %,-L%, $(LIBDIRS:%/=%))
+LIBS := $(patsubst %,-L%, $(LIBDIRS:%/=%))
 
-# define the C source files
-SOURCES		:= $(wildcard $(patsubst %,%/*.cpp, $(SOURCEDIRS))) $(wildcard $(INCLUDE)/imgui/*.cpp)
+# define main source file
+MAIN_SRC := $(SRC)/main.cpp
+MAIN_OBJ := $(MAIN_SRC:.cpp=.o)
 
-# define the C object files 
-OBJECTS		:= $(SOURCES:.cpp=.o)
+# define other source files
+OTHER_SRCS := $(filter-out $(MAIN_SRC), $(wildcard $(patsubst %,%/*.cpp, $(SOURCEDIRS))) $(wildcard $(INCLUDE)/imgui/*.cpp))
+OTHER_OBJS := $(OTHER_SRCS:.cpp=.o)
 
-#
-# The following part of the makefile is generic; it can be used to 
-# build any executable just by changing the definitions above and by
-# deleting dependencies appended to the file from 'make depend'
-#
-
-OUTPUTMAIN	:= $(call FIXPATH,$(OUTPUT)/$(MAIN))
+OUTPUTMAIN := $(call FIXPATH,$(OUTPUT)/$(MAIN))
 
 all: $(OUTPUT) $(MAIN)
 	@echo Executing 'all' complete!
@@ -71,20 +50,21 @@ all: $(OUTPUT) $(MAIN)
 $(OUTPUT):
 	$(MD) $(OUTPUT)
 
-$(MAIN): $(OBJECTS) 
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $(OUTPUTMAIN) $(OBJECTS) $(LFLAGS) $(LIBS) $(LIBRARIES)
+$(MAIN): $(MAIN_OBJ) $(OTHER_OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $(OUTPUTMAIN) $^ $(LFLAGS) $(LIBS) $(LIBRARIES)
 
-# this is a suffix replacement rule for building .o's from .c's
-# it uses automatic variables $<: the name of the prerequisite of
-# the rule(a .cpp file) and $@: the name of the target of the rule (a .o file) 
-# (see the gnu make manual section about automatic variables)
+# Rule to compile main.cpp
+$(MAIN_OBJ): $(MAIN_SRC)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+# Rule to compile other source files
 .cpp.o:
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<  -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 .PHONY: clean
 clean:
 	$(RM) $(OUTPUTMAIN)
-	$(RM) $(call FIXPATH,$(OBJECTS))
+	$(RM) $(MAIN_OBJ)
 	@echo Cleanup complete!
 
 run: all

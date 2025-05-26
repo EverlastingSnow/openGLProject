@@ -1,14 +1,22 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <stb_image.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/trigonometric.hpp>
 
-#include <learnopengl/filesystem.h>
-#include <learnopengl/shader_m.h>
-#include <learnopengl/camera.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#include "shader.h"
+#include "camera.h"
+#include <iostream>
+
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include <iostream>
 
@@ -79,8 +87,8 @@ int main()
 
     // build and compile our shader zprogram
     // ------------------------------------
-    Shader lightingShader("6.multiple_lights.vs", "6.multiple_lights.fs");
-    Shader lightCubeShader("6.light_cube.vs", "6.light_cube.fs");
+    Shader lightingShader("fs_vs\\6.multiple_lights.vs", "fs_vs\\6.multiple_lights.fs");
+    Shader lightCubeShader("fs_vs\\6.light_cube.vs", "fs_vs\\6.light_cube.fs");
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -176,8 +184,8 @@ int main()
 
     // load textures (we now use a utility function to keep the code more organized)
     // -----------------------------------------------------------------------------
-    unsigned int diffuseMap = loadTexture(FileSystem::getPath("resources/textures/container2.png").c_str());
-    unsigned int specularMap = loadTexture(FileSystem::getPath("resources/textures/container2_specular.png").c_str());
+    unsigned int diffuseMap = loadTexture("resources\\container2.png");
+    unsigned int specularMap = loadTexture("resources\\container2_specular.png");
 
     // shader configuration
     // --------------------

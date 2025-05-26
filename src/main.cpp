@@ -1,13 +1,13 @@
-#include "glm/trigonometric.hpp"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/trigonometric.hpp>
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "shader.h"
 #include "camera.h"
@@ -16,22 +16,24 @@
 #include <cmath>
 #include <iostream>
 
-// #include <vector>
-// #include <random>
-
-// #include <imgui/imgui.h>
-// #include <imgui/imgui_impl_glfw.h>
-// #include <imgui/imgui_impl_opengl3.h>
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
+#include "model.h"
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void define_light_properties(Shader& shader);
+
 unsigned int loadTexture(char const * path);
 
 
@@ -45,6 +47,7 @@ bool multipleCubes = false;
 bool spinCubeView = false;
 bool firstMouse = true;
 bool showLight = false;
+bool showApple = false;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
@@ -124,10 +127,15 @@ void my_gui(){
                 spinCubeView = !spinCubeView;
             }
         }
-
         if (ImGui::CollapsingHeader("Light Settings")){
-            if (ImGui::Button("show Light")){
+            if (ImGui::Button("show Light cubes")){
                 showLight = !showLight;
+            }
+        }
+
+        if (ImGui::CollapsingHeader("apple Settings")){
+            if (ImGui::Button("show apple")){
+                showApple = !showApple;
             }
         }
         ImGui::End();
@@ -170,7 +178,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "myOpenGLProj", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Snow", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -181,6 +189,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -204,12 +213,25 @@ int main()
     // 设置样式
     ImGui::StyleColorsDark();
 
+    // Assimp::Importer importer;
+    // const aiScene* scene = importer.ReadFile("resources\\apple\\Model.obj", aiProcess_Triangulate);
+    // if (!scene) {
+    //     std::cerr << "Assimp Error: " << importer.GetErrorString() << std::endl;
+    //     return -1;
+    // }
+    // std::cout << "Model loaded successfully!" << std::endl;
+    // return 0;
+
     // build and compile our shader program
     // ------------------------------------
-    Shader triShader("src\\tri_shader.vs", "src\\tri_shader.fs"); // you can name your shader files however you like
-    Shader rectShader("src\\rect_shader.vs", "src\\rect_shader.fs");
-    Shader cubeShader("src\\cube_shader.vs", "src\\cube_shader.fs"); 
-    Shader lightShader("src\\light_shader.vs", "src\\light_shader.fs");
+    Shader triShader("fs_vs\\tri_shader.vs", "fs_vs\\tri_shader.fs"); // you can name your shader files however you like
+    Shader rectShader("fs_vs\\rect_shader.vs", "fs_vs\\rect_shader.fs");
+    Shader cubeShader("fs_vs\\cube_shader.vs", "fs_vs\\cube_shader.fs"); 
+    Shader lightShader("fs_vs\\light_shader.vs", "fs_vs\\light_shader.fs");
+    // Shader appleShader("fs_vs\\apple_shader.vs", "fs_vs\\apple_shader.fs");
+    Shader appleShader("fs_vs\\cube_shader.vs", "fs_vs\\cube_shader.fs");
+
+    Model appleModel("resources\\apple\\Model.obj");
 
     unsigned int VBO_tri, VAO_tri;
     glGenVertexArrays(1, &VAO_tri);
@@ -251,8 +273,8 @@ int main()
     glEnableVertexAttribArray(2);
     
 
-    unsigned int texture1 = loadTexture("src\\container.jpg");
-    unsigned int texture2 = loadTexture("src\\laugh.png");
+    unsigned int texture1 = loadTexture("resources\\container.jpg");
+    unsigned int texture2 = loadTexture("resources\\laugh.png");
     
     rectShader.use();
     rectShader.setFloat("Beta", rectBeta);
@@ -282,8 +304,8 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    unsigned int diffuseMap = loadTexture("src\\container2.png");
-    unsigned int specularMap = loadTexture("src\\container2_specular.png");
+    unsigned int diffuseMap = loadTexture("resources\\container2.png");
+    unsigned int specularMap = loadTexture("resources\\container2_specular.png");
 
     
 
@@ -326,6 +348,26 @@ int main()
 
         my_gui();
 
+        // render the apple
+        if (showApple) {
+            define_light_properties(appleShader);
+
+            appleShader.use();
+            glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 view = camera.GetViewMatrix();
+            appleShader.setMat4("projection", projection);
+            appleShader.setMat4("view", view);
+
+            // render the loaded model
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(1.0f, 0.0f, -5.0f));
+            model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));	
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            appleShader.setMat4("model", model);
+            appleModel.Draw(appleShader);
+
+        }
+
         // render the light
         if (showLight){
             glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -349,62 +391,7 @@ int main()
 
         // render the cube
         if (showCube) {
-
-            cubeShader.use();
-            // cubeShader.setVec3("light.position", lightPos);
-            // cubeShader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
-            cubeShader.setVec3("viewPos", camera.Position);
-            cubeShader.setFloat("material.shiniess", 32.0f);
-
-            // light properties
-            cubeShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
-            cubeShader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
-            cubeShader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
-            cubeShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
-            // point light 1
-            cubeShader.setVec3("pointLights[0].position", pointLightPositions[0]);
-            cubeShader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
-            cubeShader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
-            cubeShader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
-            cubeShader.setFloat("pointLights[0].constant", 1.0f);
-            cubeShader.setFloat("pointLights[0].linear", 0.09f);
-            cubeShader.setFloat("pointLights[0].quadratic", 0.032f);
-            // point light 2
-            cubeShader.setVec3("pointLights[1].position", pointLightPositions[1]);
-            cubeShader.setVec3("pointLights[1].ambient", 0.05f, 0.05f, 0.05f);
-            cubeShader.setVec3("pointLights[1].diffuse", 0.8f, 0.8f, 0.8f);
-            cubeShader.setVec3("pointLights[1].specular", 1.0f, 1.0f, 1.0f);
-            cubeShader.setFloat("pointLights[1].constant", 1.0f);
-            cubeShader.setFloat("pointLights[1].linear", 0.09f);
-            cubeShader.setFloat("pointLights[1].quadratic", 0.032f);
-            // point light 3
-            cubeShader.setVec3("pointLights[2].position", pointLightPositions[2]);
-            cubeShader.setVec3("pointLights[2].ambient", 0.05f, 0.05f, 0.05f);
-            cubeShader.setVec3("pointLights[2].diffuse", 0.8f, 0.8f, 0.8f);
-            cubeShader.setVec3("pointLights[2].specular", 1.0f, 1.0f, 1.0f);
-            cubeShader.setFloat("pointLights[2].constant", 1.0f);
-            cubeShader.setFloat("pointLights[2].linear", 0.09f);
-            cubeShader.setFloat("pointLights[2].quadratic", 0.032f);
-            // point light 4
-            cubeShader.setVec3("pointLights[3].position", pointLightPositions[3]);
-            cubeShader.setVec3("pointLights[3].ambient", 0.05f, 0.05f, 0.05f);
-            cubeShader.setVec3("pointLights[3].diffuse", 0.8f, 0.8f, 0.8f);
-            cubeShader.setVec3("pointLights[3].specular", 1.0f, 1.0f, 1.0f);
-            cubeShader.setFloat("pointLights[3].constant", 1.0f);
-            cubeShader.setFloat("pointLights[3].linear", 0.09f);
-            cubeShader.setFloat("pointLights[3].quadratic", 0.032f);
-            // spotLight
-            cubeShader.setVec3("spotLight.position", camera.Position);
-            cubeShader.setVec3("spotLight.direction", camera.Front);
-            cubeShader.setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
-            cubeShader.setVec3("spotLight.diffuse", 1.0f, 1.0f, 1.0f);
-            cubeShader.setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
-            cubeShader.setFloat("spotLight.constant", 1.0f);
-            cubeShader.setFloat("spotLight.linear", 0.09f);
-            cubeShader.setFloat("spotLight.quadratic", 0.032f);
-            cubeShader.setFloat("spotLight.cutOff", glm::cos(glm::radians(12.5f)));
-            cubeShader.setFloat("spotLight.outerCutOff", glm::cos(glm::radians(15.0f)));     
-
+            define_light_properties(cubeShader);
             // make sure to initialize matrix to identity matrix first
             glm::mat4 cube_view          = glm::mat4(1.0f);
             glm::mat4 cube_projection    = glm::mat4(1.0f);
@@ -538,6 +525,62 @@ int main()
     glfwTerminate();
     return 0;
 }
+void define_light_properties(Shader& shader){
+    shader.use();
+    // shader.setVec3("light.position", lightPos);
+    // shader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
+    shader.setVec3("viewPos", camera.Position);
+    shader.setFloat("material.shininess", 32.0f);
+
+    // light properties
+    shader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+    shader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
+    shader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+    // point light 1
+    shader.setVec3("pointLights[0].position", pointLightPositions[0]);
+    shader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
+    shader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("pointLights[0].constant", 1.0f);
+    shader.setFloat("pointLights[0].linear", 0.09f);
+    shader.setFloat("pointLights[0].quadratic", 0.032f);
+    // point light 2
+    shader.setVec3("pointLights[1].position", pointLightPositions[1]);
+    shader.setVec3("pointLights[1].ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("pointLights[1].diffuse", 0.8f, 0.8f, 0.8f);
+    shader.setVec3("pointLights[1].specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("pointLights[1].constant", 1.0f);
+    shader.setFloat("pointLights[1].linear", 0.09f);
+    shader.setFloat("pointLights[1].quadratic", 0.032f);
+    // point light 3
+    shader.setVec3("pointLights[2].position", pointLightPositions[2]);
+    shader.setVec3("pointLights[2].ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("pointLights[2].diffuse", 0.8f, 0.8f, 0.8f);
+    shader.setVec3("pointLights[2].specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("pointLights[2].constant", 1.0f);
+    shader.setFloat("pointLights[2].linear", 0.09f);
+    shader.setFloat("pointLights[2].quadratic", 0.032f);
+    // point light 4
+    shader.setVec3("pointLights[3].position", pointLightPositions[3]);
+    shader.setVec3("pointLights[3].ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("pointLights[3].diffuse", 0.8f, 0.8f, 0.8f);
+    shader.setVec3("pointLights[3].specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("pointLights[3].constant", 1.0f);
+    shader.setFloat("pointLights[3].linear", 0.09f);
+    shader.setFloat("pointLights[3].quadratic", 0.032f);
+    // spotLight
+    shader.setVec3("spotLight.position", camera.Position);
+    shader.setVec3("spotLight.direction", camera.Front);
+    shader.setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
+    shader.setVec3("spotLight.diffuse", 1.0f, 1.0f, 1.0f);
+    shader.setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("spotLight.constant", 1.0f);
+    shader.setFloat("spotLight.linear", 0.09f);
+    shader.setFloat("spotLight.quadratic", 0.032f);
+    shader.setFloat("spotLight.cutOff", glm::cos(glm::radians(12.5f)));
+    shader.setFloat("spotLight.outerCutOff", glm::cos(glm::radians(15.0f)));   
+}
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
@@ -564,30 +607,74 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
+
+bool isDragging = false;
+glm::vec2 dragStartPos;
+glm::vec3 focusPoint(0.0f); // 相机聚焦的中心点
+float cameraDistance = 5.0f; // 相机到焦点的距离
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
-
-    if (firstMouse)
-    {
-        lastX = xpos;
-        lastY = ypos;
-        firstMouse = false;
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            isDragging = true;
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+            dragStartPos = glm::vec2(x, y);
+        } else if (action == GLFW_RELEASE) {
+            isDragging = false;
+        }
     }
-
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-
-    lastX = xpos;
-    lastY = ypos;
-
-    camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (!isDragging) return;
+
+    glm::vec2 currentPos(xpos, ypos);
+    glm::vec2 delta = currentPos - dragStartPos;
+    dragStartPos = currentPos;
+
+    // 获取窗口尺寸
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    
+    // 转换为标准化设备坐标
+    glm::vec2 ndcDelta = delta / glm::vec2(width, height);
+    
+    // 旋转速度控制
+    float rotationSpeed = 5.0f;
+    float horizontalAngle = ndcDelta.x * rotationSpeed;
+    float verticalAngle = ndcDelta.y * rotationSpeed;
+
+    // 当前相机位置相对于焦点的向量
+    glm::vec3 relativePos = camera.Position - focusPoint;
+    
+    // 创建四元数旋转
+    glm::quat horizontalRot = glm::angleAxis(glm::radians(-horizontalAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::quat verticalRot = glm::angleAxis(glm::radians(verticalAngle), camera.Right);
+    
+    // 组合旋转
+    glm::quat totalRot = horizontalRot * verticalRot;
+    relativePos = totalRot * relativePos;
+    
+    // 更新相机位置
+    camera.Position = focusPoint + relativePos;
+    
+    // 更新相机朝向
+    camera.Front = glm::normalize(focusPoint - camera.Position);
+    camera.Right = glm::normalize(glm::cross(camera.Front, camera.WorldUp));
+    camera.Up = glm::normalize(glm::cross(camera.Right, camera.Front));
+}
+
+// 滚轮缩放控制
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    camera.ProcessMouseScroll(static_cast<float>(yoffset));
+    cameraDistance = glm::max(1.0f, cameraDistance - (float)yoffset * 0.5f);
+    
+    // 保持相机看向焦点
+    glm::vec3 direction = glm::normalize(camera.Position - focusPoint);
+    camera.Position = focusPoint + direction * cameraDistance;
 }
 
 unsigned int loadTexture(char const * path)
